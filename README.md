@@ -1,4 +1,4 @@
-# Video Quality Tool
+# Frame Guard
 
 A local web app for comparing a distorted video against a reference using **VMAF**, **SSIM**, and **PSNR**
 (computed in a single `ffmpeg`/`libvmaf` pass), plus an `ffprobe`-style metadata viewer for both files.
@@ -6,7 +6,7 @@ A local web app for comparing a distorted video against a reference using **VMAF
 ## Requirements
 
 - Python 3.10+
-- `ffmpeg` and `ffprobe` on your `PATH`, built with `--enable-libvmaf` (check with `ffmpeg -filters | findstr vmaf`)
+- `ffmpeg` (5.0 or newer) and `ffprobe` on your `PATH`, built with `--enable-libvmaf` (check with `ffmpeg -filters | findstr vmaf`)
 
 ## Setup
 
@@ -25,7 +25,7 @@ Then open http://localhost:8756
 
 ## How it works
 
-- **Analysis** (`backend/ffmpeg_tools.py`): runs `ffmpeg -i distorted -i reference -lavfi "...libvmaf=psnr=true:ssim=true:..." -f null -`.
+- **Analysis** (`backend/ffmpeg_tools.py`): runs `ffmpeg -i distorted -i reference -lavfi "...libvmaf=feature=name=psnr|name=float_ssim:..." -f null -`.
   The `libvmaf` filter computes VMAF, SSIM, and PSNR together in one decode pass and writes a JSON log,
   which is parsed for the pooled (min/max/mean/harmonic-mean) scores. If reference and distorted have
   different resolutions, the reference is auto-scaled to match the distorted video before comparison.
@@ -45,7 +45,7 @@ Then open http://localhost:8756
 ## Project structure
 
 ```
-video-quality-tool/
+Frame-Guard/
 ├── backend/
 │   ├── main.py           FastAPI app & routes
 │   ├── ffmpeg_tools.py    ffmpeg/ffprobe wrappers, VMAF/PSNR/SSIM analysis

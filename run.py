@@ -1,4 +1,4 @@
-"""Launch the Video Quality Tool local web server."""
+"""Launch the Frame Guard local web server."""
 import uvicorn
 
 if __name__ == "__main__":

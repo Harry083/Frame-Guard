@@ -375,7 +375,7 @@ function showResults(result) {
   const jsonLink = document.getElementById("report-json-link");
   htmlLink.href = `/api/jobs/${state.jobId}/report.html`;
   jsonLink.href = `/api/jobs/${state.jobId}/report.json`;
-  jsonLink.setAttribute("download", `vmaf-report-${state.jobId}.json`);
+  jsonLink.setAttribute("download", `frame-guard-report-${state.jobId}.json`);
 
   const pooled = result.raw_pooled_metrics || {};
   // libvmaf also pools its internal elementary features (ADM/VIF/motion) —

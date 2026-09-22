@@ -141,6 +141,12 @@ VMAF_MODELS = {
     "vmaf_4k_v0.6.1": "version=vmaf_4k_v0.6.1",
 }
 
+# Extra libvmaf features computed alongside VMAF. Uses the libvmaf 2.x
+# `feature=` option (FFmpeg 5.0+); the old `psnr=true:ssim=true` flags
+# were removed in newer FFmpeg releases. Log keys are unchanged:
+# psnr_y / psnr_cb / psnr_cr and float_ssim.
+VMAF_EXTRA_FEATURES = "name=psnr|name=float_ssim"
+
 
 @dataclass
 class AnalysisProgress:
@@ -237,7 +243,7 @@ async def run_quality_analysis(
 
     ref_res, dist_res = await asyncio.gather(get_resolution(reference), get_resolution(distorted))
 
-    tmp_dir = Path(tempfile.gettempdir()) / "vmaf-compare"
+    tmp_dir = Path(tempfile.gettempdir()) / "frame-guard"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     log_path = tmp_dir / f"vmaf_{os.getpid()}_{id(reference)}.json"
 
@@ -251,7 +257,7 @@ async def run_quality_analysis(
 
     escaped_log_path = _escape_lavfi_value(log_path.as_posix())
     libvmaf_opts = (
-        f"model={model_opt}:psnr=true:ssim=true:log_fmt=json:"
+        f"model={model_opt}:feature={VMAF_EXTRA_FEATURES}:log_fmt=json:"
         f"log_path={escaped_log_path}:n_threads={n_threads}:n_subsample={n_subsample}"
     )
     filter_parts.append(f"[0:v]{ref_label}libvmaf={libvmaf_opts}")
