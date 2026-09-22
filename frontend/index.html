@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Video Quality Tool</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <h1>Video Quality Tool</h1>
+    <p class="subtitle">VMAF · SSIM · PSNR comparison and ffprobe-style metadata, powered by ffmpeg</p>
+  </header>
+
+  <main>
+    <section class="picker-row">
+      <div class="picker-card" data-role="reference">
+        <h2>Reference <span class="hint">(original / source)</span></h2>
+        <div class="path-input-row">
+          <input type="text" class="path-input" placeholder="C:\path\to\reference.mp4" data-field="reference" />
+          <button class="browse-btn" data-field="reference">Browse…</button>
+        </div>
+        <div class="file-status" data-status="reference"></div>
+      </div>
+
+      <div class="picker-card" data-role="distorted">
+        <h2>Distorted <span class="hint">(encoded / processed)</span></h2>
+        <div class="path-input-row">
+          <input type="text" class="path-input" placeholder="C:\path\to\distorted.mp4" data-field="distorted" />
+          <button class="browse-btn" data-field="distorted">Browse…</button>
+        </div>
+        <div class="file-status" data-status="distorted"></div>
+      </div>
+    </section>
+
+    <section class="controls-row">
+      <label class="model-select-label">
+        Model
+        <select id="model-select"></select>
+      </label>
+      <label class="model-select-label">
+        Subsample
+        <select id="subsample-select">
+          <option value="1">Every frame (1)</option>
+          <option value="2">Every 2nd frame</option>
+          <option value="5">Every 5th frame</option>
+          <option value="10">Every 10th frame</option>
+        </select>
+      </label>
+      <button id="run-btn" class="run-btn" disabled>Run Analysis</button>
+      <button id="cancel-btn" class="cancel-btn hidden">Cancel</button>
+    </section>
+
+    <section id="progress-section" class="progress-section hidden">
+      <div class="progress-bar-track">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+      </div>
+      <div class="progress-label" id="progress-label">Starting…</div>
+    </section>
+
+    <section id="error-section" class="error-section hidden"></section>
+
+    <section id="results-section" class="results-section hidden">
+      <div class="results-header">
+        <h2>Quality Metrics</h2>
+        <div class="report-actions">
+          <a id="report-html-link" class="report-btn" target="_blank" rel="noopener">View / Save Report</a>
+          <a id="report-json-link" class="report-btn report-btn-secondary">Download JSON</a>
+        </div>
+      </div>
+      <div class="score-cards" id="score-cards"></div>
+      <details class="raw-details">
+        <summary>Raw pooled metrics (JSON)</summary>
+        <pre id="raw-metrics"></pre>
+      </details>
+    </section>
+
+    <section class="metadata-section">
+      <h2>Metadata</h2>
+      <div class="metadata-row">
+        <div class="metadata-col">
+          <h3>Reference</h3>
+          <div id="metadata-reference" class="metadata-panel">
+            <p class="placeholder">Pick a reference file to see its metadata.</p>
+          </div>
+        </div>
+        <div class="metadata-col">
+          <h3>Distorted</h3>
+          <div id="metadata-distorted" class="metadata-panel">
+            <p class="placeholder">Pick a distorted file to see its metadata.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="browse-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span id="browse-modal-title">Select a file</span>
+      <button id="browse-modal-close" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-toolbar">
+      <button id="browse-up-btn" title="Up one level">&uarr; Up</button>
+      <span id="browse-current-path" class="current-path"></span>
+    </div>
+    <div id="browse-entries" class="browse-entries"></div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
