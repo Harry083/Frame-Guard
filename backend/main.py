@@ -13,7 +13,7 @@ from . import file_browser
 from . import report as report_mod
 from .jobs import job_manager
 
-app = FastAPI(title="Video Quality Tool")
+app = FastAPI(title="Frame Guard")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -104,7 +104,7 @@ async def api_job_report_json(job_id: str):
     job = _get_finished_job(job_id)
     return JSONResponse(
         report_mod.generate_report_json(job),
-        headers={"Content-Disposition": f'attachment; filename="vmaf-report-{job_id}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="frame-guard-report-{job_id}.json"'},
     )
 
 

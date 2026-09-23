@@ -222,7 +222,7 @@ def generate_report_html(job) -> str:
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Video Quality Report — {_esc(job.id)}</title>
+<title>Frame Guard Report — {_esc(job.id)}</title>
 <style>
   :root {{
     --bg: #0f1216; --panel: #171b21; --panel-2: #1e242c; --border: #2a313b;
@@ -264,7 +264,7 @@ def generate_report_html(job) -> str:
 </head>
 <body>
 <div class="wrap">
-  <h1>Video Quality Report</h1>
+  <h1>Frame Guard Report</h1>
   <div class="meta-line">
     Generated {_esc(generated)} · job {_esc(ctx['job_id'])} · model {_esc(ctx['model'])}
     · subsample {_esc(ctx['n_subsample'])}
