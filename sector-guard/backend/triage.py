@@ -29,7 +29,7 @@ TRIAGE_MODES = {
     "quick": {"label": "Quick (SMART + 512 samples)", "samples": 512},
     "thorough": {"label": "Thorough (SMART + 8,192 samples)", "samples": 8192},
     "full": {"label": "Full surface read", "samples": None},
-    "skip": {"label": "Skip triage", "samples": 0},
+    "skip": {"label": "Skip scan", "samples": 0},
 }
 SAMPLE_SIZE = 64 * 1024
 PROBE_BYTES = 64 * 1024 * 1024
@@ -182,12 +182,12 @@ def run_triage(
     cancel: threading.Event,
 ) -> dict:
     if mode not in TRIAGE_MODES:
-        raise ValueError(f"Unknown triage mode: {mode}")
+        raise ValueError(f"Unknown scan mode: {mode}")
     started = time.time()
     result: dict = {"mode": mode, "findings": [], "bad_sectors": [], "smart": None}
     findings = result["findings"]
 
-    on_progress(TriageProgress("triage: SMART", 0.0, "Reading SMART data"))
+    on_progress(TriageProgress("scan: SMART", 0.0, "Reading SMART data"))
     smart = read_smart(path)
     result["smart"] = smart
     if not smart["available"]:
@@ -217,7 +217,7 @@ def run_triage(
             except OSError:
                 locate_bad_sectors(src, read, n, bad)
             read += n
-            on_progress(TriageProgress("triage: speed probe", 5 * read / max(1, probe), f"{read >> 20} MiB"))
+            on_progress(TriageProgress("scan: speed probe", 5 * read / max(1, probe), f"{read >> 20} MiB"))
         elapsed = time.perf_counter() - t0
         speed = probe / elapsed if elapsed > 0 and probe else 0.0
         result["read_speed"] = speed
@@ -237,7 +237,7 @@ def run_triage(
                     locate_bad_sectors(src, pos, n, bad)
                 pos += n
                 on_progress(TriageProgress(
-                    "triage: full surface read", 5 + 95 * pos / scan_total, f"{len(bad)} bad sector(s)"
+                    "scan: full surface read", 5 + 95 * pos / scan_total, f"{len(bad)} bad sector(s)"
                 ))
             result["scanned_bytes"] = src.size
         elif samples:
@@ -252,7 +252,7 @@ def run_triage(
                     locate_bad_sectors(src, off, n, bad)
                 if i % 16 == 0 or i == len(offsets) - 1:
                     on_progress(TriageProgress(
-                        "triage: sampling surface", 5 + 95 * (i + 1) / len(offsets), f"{len(bad)} bad sector(s)"
+                        "scan: sampling surface", 5 + 95 * (i + 1) / len(offsets), f"{len(bad)} bad sector(s)"
                     ))
             result["scanned_bytes"] = len(offsets) * SAMPLE_SIZE
             result["samples"] = len(offsets)
@@ -270,5 +270,5 @@ def run_triage(
 
     result["verdict"] = "attention" if any(f["level"] == "bad" for f in findings) else "clear"
     result["duration"] = time.time() - started
-    on_progress(TriageProgress("triage: done", 100.0))
+    on_progress(TriageProgress("scan: done", 100.0))
     return result

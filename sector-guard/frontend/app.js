@@ -19,7 +19,7 @@ const outputInput = $("#output-input");
 const nameInput = $("#name-input");
 const deviceList = $("#device-list");
 const runBtn = $("#run-btn");
-const triageBtn = $("#triage-btn");
+const scanBtn = $("#scan-btn");
 const cancelBtn = $("#cancel-btn");
 const progressSection = $("#progress-section");
 const progressFill = $("#progress-bar-fill");
@@ -31,10 +31,10 @@ const alertSection = $("#alert-section");
 const triageSection = $("#triage-section");
 const resultsSection = $("#results-section");
 const depthSelect = $("#depth-select");
-const triageEnabled = $("#triage-enabled");
-const triageOptions = $("#triage-options");
+const scanEnabled = $("#scan-enabled");
+const scanOptions = $("#scan-options");
 
-const TRIAGE_INFO = {
+const SCAN_INFO = {
   quick: { title: "Quick", desc: "SMART health + 512 reads spread across the whole disk. Takes seconds." },
   thorough: { title: "Thorough", desc: "SMART health + 8,192 spread reads. Under a minute on a hard drive." },
   full: { title: "Full surface", desc: "Reads every sector with no hashing or writing. Takes about as long as imaging." },
@@ -86,7 +86,7 @@ async function loadHealth() {
       notes.push("Not running as Administrator/root — physical devices can't be opened. Restart Sector Guard from an elevated prompt.");
     }
     if (!data.smartctl) {
-      notes.push("smartctl not found — triage will rely on the read scan only. Install smartmontools for SMART health checks.");
+      notes.push("smartctl not found — the scan will rely on reading sectors only. Install smartmontools for SMART health checks.");
     }
     if (notes.length) {
       banner.innerHTML = notes.map(escapeHtml).join("<br>");
@@ -100,14 +100,14 @@ async function loadHealth() {
 async function loadOptions() {
   const res = await fetch("/api/options");
   const data = await res.json();
-  triageOptions.innerHTML = Object.keys(data.triage_modes)
-    .filter((mode) => mode !== "skip" && TRIAGE_INFO[mode])
-    .map((mode) => `<label class="triage-option">
-        <input type="radio" name="triage-mode" value="${mode}" ${mode === "quick" ? "checked" : ""} />
-        <span><div class="opt-title">${TRIAGE_INFO[mode].title}</div><div class="opt-desc">${TRIAGE_INFO[mode].desc}</div></span>
+  scanOptions.innerHTML = Object.keys(data.triage_modes)
+    .filter((mode) => mode !== "skip" && SCAN_INFO[mode])
+    .map((mode) => `<label class="scan-option">
+        <input type="radio" name="scan-mode" value="${mode}" ${mode === "quick" ? "checked" : ""} />
+        <span><div class="opt-title">${SCAN_INFO[mode].title}</div><div class="opt-desc">${SCAN_INFO[mode].desc}</div></span>
       </label>`)
     .join("");
-  triageOptions.querySelectorAll("input").forEach((el) => el.addEventListener("change", updateTriageUi));
+  scanOptions.querySelectorAll("input").forEach((el) => el.addEventListener("change", updateScanUi));
   blockSelect.innerHTML = "";
   for (const mb of data.block_sizes_mb) {
     blockSelect.add(new Option(`${mb} MiB`, mb, mb === 8, mb === 8));
@@ -116,25 +116,23 @@ async function loadOptions() {
   for (const d of data.io_depths) {
     depthSelect.add(new Option(d === 2 ? "2 (default)" : d >= 4 ? `${d} (NVMe)` : String(d), d, d === 2, d === 2));
   }
-  updateTriageUi();
+  updateScanUi();
 }
 
-// ---------- Triage panel ----------
-function selectedTriageMode() {
-  const checked = triageOptions.querySelector("input:checked");
+// ---------- Scan box ----------
+function selectedScanMode() {
+  const checked = scanOptions.querySelector("input:checked");
   return checked ? checked.value : "quick";
 }
 
-function updateTriageUi() {
-  const on = triageEnabled.checked;
-  triageOptions.classList.toggle("disabled", !on);
-  const pill = $("#triage-summary");
-  pill.textContent = on ? `${TRIAGE_INFO[selectedTriageMode()].title} · on` : "off";
+function updateScanUi() {
+  const on = scanEnabled.checked;
+  const pill = $("#scan-summary");
+  pill.textContent = on ? `${SCAN_INFO[selectedScanMode()].title} · before imaging` : "manual only";
   pill.classList.toggle("on", on);
-  runBtn.textContent = on ? "Triage & Image" : "Image";
 }
 
-triageEnabled.addEventListener("change", updateTriageUi);
+scanEnabled.addEventListener("change", updateScanUi);
 
 // ---------- Devices ----------
 async function loadDevices() {
@@ -264,7 +262,7 @@ document.querySelectorAll("#format-toggle button").forEach((btn) => {
 
 function updateButtons() {
   const busy = !!state.pollTimer;
-  triageBtn.disabled = busy || !state.source;
+  scanBtn.disabled = busy || !state.source;
   runBtn.disabled = busy || !(state.source && state.outputDir && nameInput.value.trim());
 }
 
@@ -358,7 +356,7 @@ browseUpBtn.addEventListener("click", () => {
 
 // ---------- Run ----------
 runBtn.addEventListener("click", () => start(false));
-triageBtn.addEventListener("click", () => start(true));
+scanBtn.addEventListener("click", () => start(true));
 cancelBtn.addEventListener("click", cancelJob);
 $("#abort-btn").addEventListener("click", cancelJob);
 $("#proceed-btn").addEventListener("click", proceedJob);
@@ -369,7 +367,7 @@ function collectCase() {
   return c;
 }
 
-async function start(triageOnly) {
+async function start(scanOnly) {
   errorSection.classList.add("hidden");
   alertSection.classList.add("hidden");
   triageSection.classList.add("hidden");
@@ -382,7 +380,7 @@ async function start(triageOnly) {
   state.alertShownFor = null;
 
   const hashes = [...document.querySelectorAll("#hash-checks input:checked")].map((el) => el.value);
-  if (!triageOnly && !hashes.length) {
+  if (!scanOnly && !hashes.length) {
     showError("Select at least one hash algorithm.");
     resetControls();
     return;
@@ -398,8 +396,8 @@ async function start(triageOnly) {
     io_depth: Number(depthSelect.value),
     compression: compressionSelect.value,
     segment_size_mb: Number(segmentSelect.value),
-    triage_mode: triageEnabled.checked || triageOnly ? selectedTriageMode() : "skip",
-    triage_only: triageOnly,
+    triage_mode: scanEnabled.checked || scanOnly ? selectedScanMode() : "skip",
+    triage_only: scanOnly,
     verify: $("#verify-check").checked,
     case: collectCase(),
   };

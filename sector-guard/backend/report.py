@@ -68,7 +68,7 @@ def _rows(pairs) -> str:
 
 def _triage_html(triage: dict | None) -> str:
     if not triage:
-        return "<p class='muted'>Triage was skipped for this acquisition.</p>"
+        return "<p class='muted'>No pre-imaging scan was run for this acquisition.</p>"
     items = "".join(
         f"<li class='finding finding-{_esc(f['level'])}'><strong>{_esc(f['title'])}</strong> — {_esc(f['detail'])}</li>"
         for f in triage.get("findings", [])
@@ -212,7 +212,7 @@ def generate_report_html(job) -> str:
   </div>
 
   <div class="panel">
-    <h2>Triage</h2>
+    <h2>Scan</h2>
     {_triage_html(ctx['triage'])}
   </div>
 
@@ -252,7 +252,7 @@ def write_acquisition_log(job) -> str:
         f"Size:            {res['total_bytes']:,} bytes ({fmt_bytes(res['total_bytes'])})",
         f"Sector size:     {res['sector_size']}",
         "",
-        "[Triage]",
+        "[Scan]",
     ]
     if triage:
         lines.append(f"Mode:            {triage['mode']}   Verdict: {triage['verdict'].upper()}")

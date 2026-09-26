@@ -10,7 +10,7 @@
 <div class="app">
   <header class="app-header">
     <h1>Sector Guard</h1>
-    <p class="subtitle">Fast forensic imaging to E01 · DD, with bad-sector triage before you commit to a full read</p>
+    <p class="subtitle">Fast forensic imaging to E01 · DD, with a quick bad-sector scan before you commit to a full read</p>
   </header>
 
   <div id="admin-banner" class="banner hidden"></div>
@@ -36,70 +36,83 @@
         <div class="file-status" id="source-status"></div>
       </div>
 
-      <div class="picker-card">
-        <h2>Destination <span class="hint">(where the image is written)</span></h2>
-        <label class="field-label">Output folder</label>
-        <div class="path-input-row">
-          <input type="text" id="output-input" class="path-input" placeholder="D:\Evidence\Case-001" />
-          <button class="browse-btn" id="browse-output">Browse…</button>
+      <div class="picker-card scan-card">
+        <div class="card-title-row">
+          <h2>Scan <span class="hint">(optional: check for bad sectors)</span></h2>
+          <span id="scan-summary" class="pill"></span>
         </div>
-        <div class="file-status" id="output-status"></div>
-        <label class="field-label">Image name</label>
-        <input type="text" id="name-input" class="path-input full" placeholder="EV001" value="image" />
-        <label class="field-label">Format</label>
-        <div class="segmented" id="format-toggle">
-          <button data-format="e01" class="active">E01 <span class="hint">EnCase</span></button>
-          <button data-format="dd">DD <span class="hint">raw</span></button>
+        <div class="scan-options" id="scan-options"></div>
+        <label class="check-inline scan-toggle"><input type="checkbox" id="scan-enabled" checked /> Scan automatically before imaging</label>
+        <p class="scan-note">If the scan finds unreadable sectors or SMART defects, imaging pauses and asks before continuing.</p>
+        <div class="scan-actions">
+          <button id="scan-btn" class="secondary-btn" disabled>Scan</button>
         </div>
       </div>
     </section>
 
-    <section class="controls-row">
-      <label class="model-select-label">
-        Read block
-        <select id="block-select"></select>
-      </label>
-      <label class="model-select-label" title="How many reads are kept queued at the drive. 2 suits most drives; try 4 or 8 for NVMe.">
-        Reads in flight
-        <select id="depth-select"></select>
-      </label>
-      <label class="model-select-label" id="compression-label">
-        E01 compression
-        <select id="compression-select">
-          <option value="fast">Fast (recommended)</option>
-          <option value="none">None (largest file)</option>
-          <option value="best">Best (slowest)</option>
-        </select>
-      </label>
-      <label class="model-select-label">
-        Split into
-        <select id="segment-select">
-          <option value="0">No split</option>
-          <option value="2048">2 GiB segments</option>
-          <option value="4000">4000 MiB (FAT32)</option>
-          <option value="1500">1500 MiB</option>
-          <option value="650">650 MiB</option>
-        </select>
-      </label>
-      <div class="model-select-label" title="Hashes run in parallel, one core each. MD5 tops out around 600-900 MB/s, so on NVMe sources use SHA-1 or SHA-256 alone for more speed. E01 embeds MD5 (and SHA-1) only when MD5 is selected.">
-        Hash algorithms <span class="hint-inline">(MD5 caps speed on NVMe)</span>
-        <div class="check-row" id="hash-checks">
-          <label><input type="checkbox" value="md5" checked /> MD5</label>
-          <label><input type="checkbox" value="sha1" checked /> SHA-1</label>
-          <label><input type="checkbox" value="sha256" /> SHA-256</label>
+    <section class="details-card">
+      <h2>Image details</h2>
+      <div class="details-grid">
+        <div class="details-field span-2">
+          <label class="field-label" for="output-input">Output folder</label>
+          <div class="path-input-row">
+            <input type="text" id="output-input" class="path-input" placeholder="D:\Evidence\Case-001" />
+            <button class="browse-btn" id="browse-output">Browse…</button>
+          </div>
+          <div class="file-status" id="output-status"></div>
+        </div>
+        <div class="details-field">
+          <label class="field-label" for="name-input">Image name</label>
+          <input type="text" id="name-input" class="path-input full" placeholder="EV001" value="image" />
         </div>
       </div>
-      <label class="check-inline"><input type="checkbox" id="verify-check" /> Verify after</label>
+      <div class="options-row">
+        <div class="model-select-label">
+          Format
+          <div class="segmented" id="format-toggle">
+            <button data-format="e01" class="active">E01 <span class="hint">EnCase</span></button>
+            <button data-format="dd">DD <span class="hint">raw</span></button>
+          </div>
+        </div>
+        <label class="model-select-label" id="compression-label">
+          E01 compression
+          <select id="compression-select">
+            <option value="fast">Fast (recommended)</option>
+            <option value="none">None (largest file)</option>
+            <option value="best">Best (slowest)</option>
+          </select>
+        </label>
+        <label class="model-select-label">
+          Split into
+          <select id="segment-select">
+            <option value="0">No split</option>
+            <option value="2048">2 GiB segments</option>
+            <option value="4000">4000 MiB (FAT32)</option>
+            <option value="1500">1500 MiB</option>
+            <option value="650">650 MiB</option>
+          </select>
+        </label>
+        <label class="model-select-label">
+          Read block
+          <select id="block-select"></select>
+        </label>
+        <label class="model-select-label" title="How many reads are kept queued at the drive. 2 suits most drives; try 4 or 8 for NVMe.">
+          Reads in flight
+          <select id="depth-select"></select>
+        </label>
+      </div>
+      <div class="options-row hash-row">
+        <div class="model-select-label" title="Hashes run in parallel, one core each. MD5 tops out around 600-900 MB/s, so on NVMe sources use SHA-1 or SHA-256 alone for more speed. E01 embeds MD5 (and SHA-1) only when MD5 is selected.">
+          Hash algorithms <span class="hint-inline">(MD5 caps speed on NVMe)</span>
+          <div class="check-row" id="hash-checks">
+            <label><input type="checkbox" value="md5" checked /> MD5</label>
+            <label><input type="checkbox" value="sha1" checked /> SHA-1</label>
+            <label><input type="checkbox" value="sha256" /> SHA-256</label>
+          </div>
+        </div>
+        <label class="check-inline"><input type="checkbox" id="verify-check" /> Verify image after</label>
+      </div>
     </section>
-
-    <details class="case-details" id="triage-panel">
-      <summary>Triage <span class="hint">(optional: check for bad sectors before imaging)</span>
-        <span id="triage-summary" class="pill"></span></summary>
-      <label class="check-inline triage-toggle"><input type="checkbox" id="triage-enabled" checked /> Run triage before imaging</label>
-      <div class="triage-options" id="triage-options"></div>
-      <p class="hint triage-note">If triage finds unreadable sectors or SMART defects, imaging pauses and asks before continuing.
-        Triage time adds to the total. Turn it off for known-good drives.</p>
-    </details>
 
     <details class="case-details">
       <summary>Case details <span class="hint">(stored in the E01 header and the report)</span></summary>
@@ -113,8 +126,7 @@
     </details>
 
     <section class="action-row">
-      <button id="triage-btn" class="secondary-btn" disabled>Triage Only</button>
-      <button id="run-btn" class="run-btn" disabled>Triage &amp; Image</button>
+      <button id="run-btn" class="run-btn" disabled>Image</button>
       <button id="cancel-btn" class="cancel-btn hidden">Cancel</button>
     </section>
 
@@ -130,7 +142,7 @@
     </section>
 
     <section id="alert-section" class="alert-section hidden">
-      <h2>&#9888; Triage found problems with this device</h2>
+      <h2>&#9888; The scan found problems with this device</h2>
       <p class="alert-lead">Imaging will not retry bad sectors: unreadable sectors are zero-filled and logged.
         A failing drive can get worse with every read — consider an error-tolerant tool (e.g. ddrescue) instead.</p>
       <ul id="alert-findings" class="findings"></ul>
@@ -144,7 +156,7 @@
 
     <section id="triage-section" class="results-section hidden">
       <div class="results-header">
-        <h2>Triage</h2>
+        <h2>Scan results</h2>
         <span id="triage-verdict" class="verdict"></span>
       </div>
       <div class="score-cards" id="triage-cards"></div>

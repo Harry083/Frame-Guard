@@ -11,8 +11,8 @@ with no build step.
 
 - Python 3.10+
 - **Administrator (Windows) or root (Linux/macOS)**, needed to open physical devices
-- Optional: [`smartmontools`](https://www.smartmontools.org/) (`smartctl`) for SMART health checks during triage.
-  Without it, triage relies on the read scan alone.
+- Optional: [`smartmontools`](https://www.smartmontools.org/) (`smartctl`) for SMART health checks during the
+  scan. Without it, the scan relies on reading sectors alone.
 
 ## Setup
 
@@ -33,31 +33,31 @@ Then open http://localhost:8757. It uses a different port from Frame Guard, so b
 
 ## Workflow
 
-1. **Pick the source**: choose it from the device list, or type a path. The list has a **Physical / Logical**
-   filter: physical shows whole drives, logical shows partitions and volumes (drive letters on Windows).
-   Removable and OS drives are badged. Paths you can type include (`\\.\PhysicalDrive1`, `\\.\E:`, `/dev/sdb`, `/dev/rdisk2`). An
-   existing image file also works.
-2. **Pick the destination**: an output folder, an image name and a format (E01 or DD).
-3. **Triage & Image** (triage is optional; switch it off in the **Triage** panel and the button becomes
-   **Image**):
-   - **Triage** reads SMART data (reallocated, pending and uncorrectable sectors, NVMe media errors), runs a
-     short sequential read to estimate imaging time, then runs a read scan.
-   - If the scan is **clear**, imaging starts immediately.
-   - If it needs **attention** (unreadable sectors or SMART defects), the job pauses and shows what was found.
-     You choose **Image Anyway** or **Abort**.
-4. When it finishes, you get the hashes, speed and duration, a report (HTML/JSON), and an acquisition log
-   (`<name>.txt`) written next to the image.
+The page has three boxes: **Source** and **Scan** side by side, and **Image details** below them.
 
-**Triage Only** runs just the health check, which is useful for sorting a pile of drives.
+1. **Source**: choose a device from the list, or type a path. The **Physical / Logical** switch filters the
+   list: physical shows whole drives, logical shows partitions and volumes (drive letters on Windows).
+   Removable and OS drives are badged. You can type paths such as `\\.\PhysicalDrive1`, `\\.\E:`,
+   `/dev/sdb` or `/dev/rdisk2`, or pick an existing image file.
+2. **Scan** (optional): choose Quick, Thorough or Full surface.
+   - The **Scan** button in the box runs just the check, which is handy for sorting a pile of drives.
+   - With **Scan automatically before imaging** ticked, the **Image** button scans first.
+   - The scan reads SMART data (reallocated, pending and uncorrectable sectors, NVMe media errors), runs a
+     short sequential read to estimate imaging time, then reads sectors.
+   - If the result needs **attention** (unreadable sectors or SMART defects), imaging pauses and shows what
+     was found. You choose **Image Anyway** or **Abort**.
+3. **Image details**: the output folder and image name, then the format (E01 or DD), E01 compression, split
+   size, read block size, reads in flight, hash algorithms and verify.
+4. **Image**: when it finishes you get the hashes, speed and duration, a report (HTML/JSON), and an
+   acquisition log (`<name>.txt`) written next to the image.
 
-### Triage modes
+### Scan modes
 
 | Mode | What it reads | Typical time |
 |---|---|---|
 | Quick (default) | SMART + 512 samples spread evenly across the whole LBA range | seconds |
 | Thorough | SMART + 8,192 samples | under a minute on an HDD |
-| Full surface read | every sector, with no hashing or writing | about as long as imaging |
-| Skip | nothing; image straight away | – |
+| Full surface | every sector, with no hashing or writing | about as long as imaging |
 
 Sampled scans can miss isolated bad sectors, but SMART usually flags a drive that's degrading. The imager
 does not stop or retry on bad sectors either way (see below).
@@ -126,10 +126,10 @@ sector-guard/
 ├── backend/
 │   ├── main.py           FastAPI app & routes
 │   ├── devices.py        device enumeration (Windows/Linux/macOS) and read-only raw access
-│   ├── triage.py         SMART, speed probe, sampled / full read scans
+│   ├── triage.py         the scan: SMART, speed probe, sampled / full read
 │   ├── imager.py         threaded read → hash → write pipeline, bad-sector handling, verification
 │   ├── ewf.py            E01 (EnCase 6) writer + reader
-│   ├── jobs.py           background job manager (triage → decision → image → verify)
+│   ├── jobs.py           background job manager (scan → decision → image → verify)
 │   ├── report.py         HTML/JSON report and the .txt acquisition log
 │   └── file_browser.py   server-side directory listing for the folder/file pickers
 ├── frontend/             vanilla HTML/CSS/JS UI

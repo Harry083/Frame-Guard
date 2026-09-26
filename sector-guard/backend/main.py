@@ -114,7 +114,7 @@ async def api_acquire(req: AcquireRequest):
     if req.format not in ("e01", "dd"):
         raise HTTPException(status_code=400, detail=f"Unknown format: {req.format}")
     if req.triage_mode not in triage_mod.TRIAGE_MODES:
-        raise HTTPException(status_code=400, detail=f"Unknown triage mode: {req.triage_mode}")
+        raise HTTPException(status_code=400, detail=f"Unknown scan mode: {req.triage_mode}")
     if req.block_size_mb not in BLOCK_SIZES_MB:
         raise HTTPException(status_code=400, detail=f"Block size must be one of {BLOCK_SIZES_MB} MiB")
     if req.io_depth not in IO_DEPTHS:

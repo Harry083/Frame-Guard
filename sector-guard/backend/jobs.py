@@ -115,7 +115,7 @@ class JobManager:
 
         try:
             if opts["triage_mode"] != "skip":
-                job.stage = "triage"
+                job.stage = "scan"
                 job.triage = await asyncio.to_thread(
                     triage_mod.run_triage, opts["source"], opts["triage_mode"], on_triage, job.cancel_event
                 )
