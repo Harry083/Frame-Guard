@@ -147,6 +147,7 @@ class JobManager:
                 compression=opts["compression"],
                 segment_size=opts["segment_size_mb"] * 1024 * 1024 if opts["segment_size_mb"] else None,
                 case_info=opts["case"],
+                io_depth=opts["io_depth"],
                 device_info=job.device or {},
                 verify=opts["verify"],
                 on_progress=on_image,

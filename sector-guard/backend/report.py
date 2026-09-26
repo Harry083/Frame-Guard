@@ -203,6 +203,8 @@ def generate_report_html(job) -> str:
         ("Compression", res.get("compression")),
         ("Segment size", fmt_bytes(res.get("segment_size")) if res.get("segment_size") else "no split"),
         ("Read block size", fmt_bytes(res.get("block_size"))),
+        ("Reads in flight", res.get("io_depth")),
+        ("Speed limited by", (res.get("bottleneck") or {}).get("label")),
         ("Started", _ts(res.get("started_at"))), ("Finished", _ts(res.get("finished_at"))),
     ])}</table>
     <h3 style="margin-top:14px">Files</h3>
@@ -267,6 +269,7 @@ def write_acquisition_log(job) -> str:
         f"Finished:        {_ts(res['finished_at'])}",
         f"Duration:        {fmt_duration(res['duration'])}",
         f"Average speed:   {fmt_speed(res['avg_speed'])}",
+        f"Limited by:      {(res.get('bottleneck') or {}).get('label', '-')}",
         f"Bad sectors:     {res['bad_sectors']:,} (zero-filled)",
     ]
     for s, c in res.get("bad_ranges", []):

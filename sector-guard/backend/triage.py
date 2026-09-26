@@ -32,7 +32,7 @@ TRIAGE_MODES = {
     "skip": {"label": "Skip triage", "samples": 0},
 }
 SAMPLE_SIZE = 64 * 1024
-PROBE_BYTES = 256 * 1024 * 1024
+PROBE_BYTES = 64 * 1024 * 1024
 FULL_BLOCK = 8 * 1024 * 1024
 MAX_BAD_RECORDED = 10_000
 

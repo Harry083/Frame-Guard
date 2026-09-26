@@ -22,6 +22,7 @@ app = FastAPI(title="Sector Guard")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 BLOCK_SIZES_MB = (1, 2, 4, 8, 16, 32)
+IO_DEPTHS = (1, 2, 4, 8)
 MIN_SEGMENT_MB = 16
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._()\-]{0,120}$")
 
@@ -42,6 +43,7 @@ async def api_options():
     return {
         "triage_modes": {k: v["label"] for k, v in triage_mod.TRIAGE_MODES.items()},
         "block_sizes_mb": BLOCK_SIZES_MB,
+        "io_depths": IO_DEPTHS,
         "compression": list(COMPRESSION_LEVELS),
         "hashes": list(imager.HASH_ALGOS),
     }
@@ -90,6 +92,7 @@ class AcquireRequest(BaseModel):
     format: str = "e01"
     hashes: list[str] = Field(default_factory=lambda: ["md5", "sha1"])
     block_size_mb: int = 8
+    io_depth: int = 2  # reads kept in flight at once
     compression: str = "fast"
     segment_size_mb: int = 0  # 0 = no split
     triage_mode: str = "quick"
@@ -114,6 +117,8 @@ async def api_acquire(req: AcquireRequest):
         raise HTTPException(status_code=400, detail=f"Unknown triage mode: {req.triage_mode}")
     if req.block_size_mb not in BLOCK_SIZES_MB:
         raise HTTPException(status_code=400, detail=f"Block size must be one of {BLOCK_SIZES_MB} MiB")
+    if req.io_depth not in IO_DEPTHS:
+        raise HTTPException(status_code=400, detail=f"Read queue depth must be one of {IO_DEPTHS}")
     if req.compression not in COMPRESSION_LEVELS:
         raise HTTPException(status_code=400, detail=f"Unknown compression: {req.compression}")
     if req.segment_size_mb and req.segment_size_mb < MIN_SEGMENT_MB:

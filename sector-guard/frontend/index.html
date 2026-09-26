@@ -22,6 +22,10 @@
           <h2>Source <span class="hint">(device to image)</span></h2>
           <button id="refresh-devices" class="browse-btn small-btn" title="Rescan devices">&#8635; Refresh</button>
         </div>
+        <div class="segmented segmented-small filter-toggle" id="device-filter">
+          <button data-filter="physical" class="active">Physical <span class="count" data-count="physical"></span></button>
+          <button data-filter="logical">Logical <span class="count" data-count="logical"></span></button>
+        </div>
         <div id="device-list" class="device-list">
           <p class="placeholder">Scanning for devices…</p>
         </div>
@@ -52,12 +56,12 @@
 
     <section class="controls-row">
       <label class="model-select-label">
-        Triage
-        <select id="triage-select"></select>
-      </label>
-      <label class="model-select-label">
         Read block
         <select id="block-select"></select>
+      </label>
+      <label class="model-select-label" title="How many reads are kept queued at the drive. 2 suits most drives; try 4 or 8 for NVMe.">
+        Reads in flight
+        <select id="depth-select"></select>
       </label>
       <label class="model-select-label" id="compression-label">
         E01 compression
@@ -78,7 +82,7 @@
         </select>
       </label>
       <div class="model-select-label" title="Hashes run in parallel, one core each. MD5 tops out around 600-900 MB/s, so on NVMe sources use SHA-1 or SHA-256 alone for more speed. E01 embeds MD5 (and SHA-1) only when MD5 is selected.">
-        Hashes <span class="hint-inline">(MD5 caps speed on NVMe)</span>
+        Hash algorithms <span class="hint-inline">(MD5 caps speed on NVMe)</span>
         <div class="check-row" id="hash-checks">
           <label><input type="checkbox" value="md5" checked /> MD5</label>
           <label><input type="checkbox" value="sha1" checked /> SHA-1</label>
@@ -87,6 +91,15 @@
       </div>
       <label class="check-inline"><input type="checkbox" id="verify-check" /> Verify after</label>
     </section>
+
+    <details class="case-details" id="triage-panel">
+      <summary>Triage <span class="hint">(optional: check for bad sectors before imaging)</span>
+        <span id="triage-summary" class="pill"></span></summary>
+      <label class="check-inline triage-toggle"><input type="checkbox" id="triage-enabled" checked /> Run triage before imaging</label>
+      <div class="triage-options" id="triage-options"></div>
+      <p class="hint triage-note">If triage finds unreadable sectors or SMART defects, imaging pauses and asks before continuing.
+        Triage time adds to the total. Turn it off for known-good drives.</p>
+    </details>
 
     <details class="case-details">
       <summary>Case details <span class="hint">(stored in the E01 header and the report)</span></summary>

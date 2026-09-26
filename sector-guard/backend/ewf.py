@@ -61,28 +61,30 @@ def _clean(value) -> str:
 
 
 def _looks_incompressible(chunk: bytes, level: int) -> bool:
-    """Compress a 4 KiB sample (start + middle) instead of the whole chunk. Encrypted or already-compressed
+    """Compress a 2 KiB sample (start + middle) instead of the whole chunk. Encrypted or already-compressed
     data costs zlib ~60 MB/s per core for no gain; the probe spots it at a fraction of that cost."""
     mid = len(chunk) // 2
-    sample = chunk[:2048] + chunk[mid:mid + 2048]
+    sample = chunk[:1024] + chunk[mid:mid + 1024]
     return len(zlib.compress(sample, level)) >= len(sample) * 0.97
 
 
 def _pack_chunks(
     chunks: list[bytes], level: int | None, zero_chunk: bytes, zero_packed: bytes, probe: bool
-) -> list[tuple[bytes, bool]]:
+) -> list[tuple[bytes, bytes, bool]]:
+    """Returns (payload, trailing checksum, compressed) per chunk. The checksum of a raw chunk is kept
+    separate so the chunk is never copied just to append 4 bytes."""
     out = []
     for chunk in chunks:
         if len(chunk) == len(zero_chunk) and chunk == zero_chunk:
-            out.append((zero_packed, True))
+            out.append((zero_packed, b"", True))
             continue
         if level is not None and not (probe and _looks_incompressible(chunk, level)):
             packed = zlib.compress(chunk, level)
             # Per the spec a chunk is stored raw when compressing doesn't make it smaller.
             if len(packed) < len(chunk):
-                out.append((packed, True))
+                out.append((packed, b"", True))
                 continue
-        out.append((chunk + _adler(chunk), False))
+        out.append((chunk, _adler(chunk), False))
     return out
 
 
@@ -124,6 +126,7 @@ class EwfWriter:
         self._zero_packed = zlib.compress(self._zero_chunk, self.level if self.level is not None else 1)
         self._inflight: deque = deque()
         self._pending = b""
+        self._parts: list[bytes] = []  # chunk data queued for one gathered write per block
 
         self.paths: list[str] = []
         self._f = None
@@ -203,16 +206,25 @@ class EwfWriter:
 
     def _drain_one(self) -> None:
         for fut in self._inflight.popleft():
-            for payload, compressed in fut.result():
-                self._write_chunk(payload, compressed)
+            for payload, checksum, compressed in fut.result():
+                self._write_chunk(payload, checksum, compressed)
+        self._flush()
 
-    def _write_chunk(self, payload: bytes, compressed: bool) -> None:
+    def _flush(self) -> None:
+        # One large write per block instead of hundreds of 32 KiB ones: fewer syscalls and Python calls,
+        # and writes bigger than the file buffer skip its extra copy.
+        if self._parts:
+            self._f.write(b"".join(self._parts))
+            self._parts = []
+
+    def _write_chunk(self, payload: bytes, checksum: bytes, compressed: bool) -> None:
+        size = len(payload) + len(checksum)
         if len(self._entries) >= MAX_TABLE_ENTRIES:
             self._close_sectors_group()
         if (
             self.segment_size
             and self._chunks_in_segment
-            and self._pos + len(payload) + SEGMENT_TAIL_RESERVE > self.segment_size
+            and self._pos + size + SEGMENT_TAIL_RESERVE > self.segment_size
         ):
             self._close_sectors_group()
             self._f.write(_descriptor(b"next", self._pos, 0, next_offset=self._pos))
@@ -220,14 +232,16 @@ class EwfWriter:
             self._open_segment()
         if self._sectors_start is None:
             self._sectors_start = self._pos
-            self._f.write(bytes(76))  # descriptor is patched in once the section's size is known
+            self._parts.append(bytes(76))  # descriptor is patched in once the section's size is known
             self._pos += 76
         self._entries.append((self._pos - self._sectors_start) | (0x80000000 if compressed else 0))
-        self._f.write(payload)
-        self._pos += len(payload)
+        self._parts.append(payload)
+        if checksum:
+            self._parts.append(checksum)
+        self._pos += size
         self._chunks_in_segment += 1
         self.chunks_written += 1
-        self.bytes_written += len(payload)
+        self.bytes_written += size
 
     # ------------------------------------------------------------ sections
 
@@ -250,6 +264,7 @@ class EwfWriter:
             self._write_section(b"data", self._volume_data())
 
     def _write_section(self, kind: bytes, data: bytes, checksum: bool = False) -> None:
+        self._flush()
         if checksum:
             data = data + _adler(data)
         size = 76 + len(data)
@@ -258,6 +273,7 @@ class EwfWriter:
         self._pos += size
 
     def _close_sectors_group(self) -> None:
+        self._flush()
         if self._sectors_start is None:
             return
         start, end = self._sectors_start, self._pos

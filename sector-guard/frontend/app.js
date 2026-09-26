@@ -4,6 +4,7 @@ const state = {
   outputDir: "",
   format: "e01",
   devices: [],
+  deviceFilter: "physical",
   browseField: null,
   browsePath: "",
   jobId: null,
@@ -29,7 +30,15 @@ const errorSection = $("#error-section");
 const alertSection = $("#alert-section");
 const triageSection = $("#triage-section");
 const resultsSection = $("#results-section");
-const triageSelect = $("#triage-select");
+const depthSelect = $("#depth-select");
+const triageEnabled = $("#triage-enabled");
+const triageOptions = $("#triage-options");
+
+const TRIAGE_INFO = {
+  quick: { title: "Quick", desc: "SMART health + 512 reads spread across the whole disk. Takes seconds." },
+  thorough: { title: "Thorough", desc: "SMART health + 8,192 spread reads. Under a minute on a hard drive." },
+  full: { title: "Full surface", desc: "Reads every sector with no hashing or writing. Takes about as long as imaging." },
+};
 const blockSelect = $("#block-select");
 const compressionSelect = $("#compression-select");
 const segmentSelect = $("#segment-select");
@@ -91,15 +100,41 @@ async function loadHealth() {
 async function loadOptions() {
   const res = await fetch("/api/options");
   const data = await res.json();
-  triageSelect.innerHTML = "";
-  for (const [value, label] of Object.entries(data.triage_modes)) {
-    triageSelect.add(new Option(label, value, value === "quick", value === "quick"));
-  }
+  triageOptions.innerHTML = Object.keys(data.triage_modes)
+    .filter((mode) => mode !== "skip" && TRIAGE_INFO[mode])
+    .map((mode) => `<label class="triage-option">
+        <input type="radio" name="triage-mode" value="${mode}" ${mode === "quick" ? "checked" : ""} />
+        <span><div class="opt-title">${TRIAGE_INFO[mode].title}</div><div class="opt-desc">${TRIAGE_INFO[mode].desc}</div></span>
+      </label>`)
+    .join("");
+  triageOptions.querySelectorAll("input").forEach((el) => el.addEventListener("change", updateTriageUi));
   blockSelect.innerHTML = "";
   for (const mb of data.block_sizes_mb) {
     blockSelect.add(new Option(`${mb} MiB`, mb, mb === 8, mb === 8));
   }
+  depthSelect.innerHTML = "";
+  for (const d of data.io_depths) {
+    depthSelect.add(new Option(d === 2 ? "2 (default)" : d >= 4 ? `${d} (NVMe)` : String(d), d, d === 2, d === 2));
+  }
+  updateTriageUi();
 }
+
+// ---------- Triage panel ----------
+function selectedTriageMode() {
+  const checked = triageOptions.querySelector("input:checked");
+  return checked ? checked.value : "quick";
+}
+
+function updateTriageUi() {
+  const on = triageEnabled.checked;
+  triageOptions.classList.toggle("disabled", !on);
+  const pill = $("#triage-summary");
+  pill.textContent = on ? `${TRIAGE_INFO[selectedTriageMode()].title} · on` : "off";
+  pill.classList.toggle("on", on);
+  runBtn.textContent = on ? "Triage & Image" : "Image";
+}
+
+triageEnabled.addEventListener("change", updateTriageUi);
 
 // ---------- Devices ----------
 async function loadDevices() {
@@ -115,12 +150,18 @@ async function loadDevices() {
   }
 }
 
+const isPhysical = (d) => d.kind === "disk";
+
 function renderDevices() {
-  if (!state.devices.length) {
-    deviceList.innerHTML = `<p class="placeholder">No devices found. Enter a device path or image file below.</p>`;
+  document.querySelector('[data-count="physical"]').textContent = state.devices.length ? `(${state.devices.filter(isPhysical).length})` : "";
+  document.querySelector('[data-count="logical"]').textContent = state.devices.length ? `(${state.devices.filter((d) => !isPhysical(d)).length})` : "";
+  const shown = state.devices.filter((d) => (state.deviceFilter === "physical") === isPhysical(d));
+  if (!shown.length) {
+    const what = state.deviceFilter === "physical" ? "physical drives" : "logical volumes or partitions";
+    deviceList.innerHTML = `<p class="placeholder">No ${what} found. Enter a device path or image file below.</p>`;
     return;
   }
-  deviceList.innerHTML = state.devices
+  deviceList.innerHTML = shown
     .map((d) => {
       const badges = [
         d.kind !== "disk" ? `<span class="badge">${escapeHtml(d.kind)}</span>` : "",
@@ -176,6 +217,13 @@ async function setSource(path) {
 
 sourceInput.addEventListener("change", () => setSource(sourceInput.value.trim()));
 $("#refresh-devices").addEventListener("click", loadDevices);
+document.querySelectorAll("#device-filter button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.deviceFilter = btn.dataset.filter;
+    document.querySelectorAll("#device-filter button").forEach((b) => b.classList.toggle("active", b === btn));
+    renderDevices();
+  });
+});
 
 // ---------- Destination ----------
 async function setOutput(path) {
@@ -347,9 +395,10 @@ async function start(triageOnly) {
     format: state.format,
     hashes: hashes.length ? hashes : ["md5"],
     block_size_mb: Number(blockSelect.value),
+    io_depth: Number(depthSelect.value),
     compression: compressionSelect.value,
     segment_size_mb: Number(segmentSelect.value),
-    triage_mode: triageSelect.value,
+    triage_mode: triageEnabled.checked || triageOnly ? selectedTriageMode() : "skip",
     triage_only: triageOnly,
     verify: $("#verify-check").checked,
     case: collectCase(),
@@ -487,7 +536,8 @@ function showResults(job) {
     card("Duration", formatDuration(r.duration), "small") +
     card("Media size", formatBytes(r.total_bytes), "small") +
     card("Image size", formatBytes(r.image_bytes), "small") +
-    card("Bad sectors", r.bad_sectors.toLocaleString(), "small", `color:${r.bad_sectors ? "var(--bad)" : "var(--good)"}`);
+    card("Bad sectors", r.bad_sectors.toLocaleString(), "small", `color:${r.bad_sectors ? "var(--bad)" : "var(--good)"}`) +
+    (r.bottleneck ? card("Limited by", escapeHtml(r.bottleneck.label), "small limiter") : "");
 
   const labels = { md5: "MD5", sha1: "SHA-1", sha256: "SHA-256" };
   let rows = "";

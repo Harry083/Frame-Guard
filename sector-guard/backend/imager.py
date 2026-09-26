@@ -5,8 +5,10 @@
           │          queue ──► sha256 thread      genuinely run in parallel on separate cores)
           └────────► queue ──► writer thread ──► DD file(s)  or  E01 writer (+ zlib thread pool)
 
-The reader issues large sequential reads (default 8 MiB) and never waits on hashing or compression
-unless a bounded queue is full. Bad sectors are not retried: a failed block is re-read in 64 KiB pieces,
+The reader keeps several large reads in flight at once (default 2 x 8 MiB, each on its own OS handle), so
+SSD/NVMe sources always have queued work and never idle between requests. Blocks are handed on strictly
+in order, and the reader never waits on hashing or compression unless a bounded queue is full. Time spent
+in each stage is measured, so every run reports what actually limited its speed. Bad sectors are not retried: a failed block is re-read in 64 KiB pieces,
 then per sector, and anything still unreadable is zero-filled and logged (and recorded in the E01 error2
 section) so the run keeps moving.
 """
@@ -17,6 +19,8 @@ import os
 import queue
 import threading
 import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -62,6 +66,7 @@ class _Consumer(threading.Thread):
         self.q: queue.Queue = queue.Queue(maxsize=QUEUE_DEPTH)
         self.fn = fn
         self.error: Optional[BaseException] = None
+        self.busy = 0.0  # seconds spent inside fn — used to name the bottleneck
 
     def run(self) -> None:
         while True:
@@ -69,10 +74,12 @@ class _Consumer(threading.Thread):
             if item is None:
                 return
             if self.error is None:
+                t0 = time.perf_counter()
                 try:
                     self.fn(item)
                 except BaseException as exc:  # noqa: BLE001
                     self.error = exc
+                self.busy += time.perf_counter() - t0
 
     def put(self, item, cancel: threading.Event) -> None:
         while True:
@@ -223,6 +230,27 @@ def _hash_files(paths: list[str], algos: list[str], block: int, total: int,
     return {a: h.hexdigest() for a, h in hashers.items()}
 
 
+STAGE_LABELS = {
+    "read": "source drive read speed",
+    "hash-md5": "MD5 hashing (single core)",
+    "hash-sha1": "SHA-1 hashing (single core)",
+    "hash-sha256": "SHA-256 hashing (single core)",
+    "writer": "destination write speed",
+}
+
+
+def _bottleneck(elapsed: float, read_wait: float, consumers: list[_Consumer], fmt: str) -> dict:
+    """Name the stage that limited throughput: whichever was busy for the largest share of the run. For the
+    source that is the time the pipeline sat waiting on reads; for hashing/writing, time inside the stage."""
+    stages = {c.name: round(c.busy / elapsed, 3) if elapsed else 0.0 for c in consumers}
+    stages["read"] = round(read_wait / elapsed, 3) if elapsed else 0.0
+    limiter = max(stages, key=stages.get)
+    label = STAGE_LABELS.get(limiter, limiter)
+    if limiter == "writer" and fmt == "e01":
+        label = "E01 compression + destination write"
+    return {"stage": limiter, "label": label, "utilisation": stages}
+
+
 def acquire(
     *,
     source: str,
@@ -234,6 +262,7 @@ def acquire(
     compression: str,
     segment_size: Optional[int],
     case_info: dict,
+    io_depth: int = 2,
     device_info: dict,
     verify: bool,
     on_progress: Callable[[ImagingProgress], None],
@@ -246,42 +275,69 @@ def acquire(
         raise ValueError("At least one hash algorithm is required")
     base = Path(output_dir) / name
 
+    io_depth = max(1, int(io_depth))
     src = RawSource(source)
     total = src.size
-    if total <= 0:
+    try:
+        if total <= 0:
+            raise ImagingError("Source reports a size of 0 bytes")
+        if fmt == "e01":
+            writer = ewf.EwfWriter(
+                base, total, bytes_per_sector=src.sector_size if src.sector_size in (512, 4096) else 512,
+                compression=compression, segment_size=segment_size, case_info=case_info,
+                device_info=device_info, removable=bool(device_info.get("removable")),
+                physical=device_info.get("kind", "disk") == "disk",
+            )
+        else:
+            writer = RawWriter(base, segment_size)
+    except BaseException:
         src.close()
-        raise ImagingError("Source reports a size of 0 bytes")
+        raise
 
-    if fmt == "e01":
-        writer = ewf.EwfWriter(
-            base, total, bytes_per_sector=src.sector_size if src.sector_size in (512, 4096) else 512,
-            compression=compression, segment_size=segment_size, case_info=case_info,
-            device_info=device_info, removable=bool(device_info.get("removable")),
-            physical=device_info.get("kind", "disk") == "disk",
-        )
-    else:
-        writer = RawWriter(base, segment_size)
+    # One handle per reader thread: Windows serialises I/O on a single synchronous handle, and separate
+    # handles also keep positional reads independent on POSIX.
+    bad: list[int] = []
+    extra = [RawSource(source) for _ in range(io_depth - 1)]
+    handles: queue.Queue = queue.Queue()
+    for h in [src, *extra]:
+        handles.put(h)
+
+    def read_at(offset: int, length: int) -> bytes:
+        h = handles.get()
+        try:
+            return _read_block(h, offset, length, bad)
+        finally:
+            handles.put(h)
+
+    read_pool = ThreadPoolExecutor(max_workers=io_depth, thread_name_prefix="reader")
 
     hashers = {a: hashlib.new(a) for a in algos}
     consumers = [_Consumer(f"hash-{a}", hashers[a].update) for a in algos]
-    writer_thread = _Consumer("writer", writer.write)
-    consumers.append(writer_thread)
+    consumers.append(_Consumer("writer", writer.write))
     for c in consumers:
         c.start()
 
-    bad: list[int] = []
     started = time.perf_counter()
     started_wall = time.time()
     window: list[tuple[float, int]] = [(started, 0)]
     pos = 0
+    next_off = 0
+    inflight: deque = deque()
+    read_wait = 0.0
     ok = False
     try:
         last_emit = 0.0
         while pos < total:
             if cancel.is_set():
                 raise ImagingCancelled()
-            n = min(block_size, total - pos)
-            data = _read_block(src, pos, n, bad)
+            while next_off < total and len(inflight) < io_depth:
+                n = min(block_size, total - next_off)
+                inflight.append((n, read_pool.submit(read_at, next_off, n)))
+                next_off += n
+            n, fut = inflight.popleft()
+            t0 = time.perf_counter()
+            data = fut.result()
+            read_wait += time.perf_counter() - t0
             for c in consumers:
                 c.put(data, cancel)
             pos += n
@@ -306,7 +362,11 @@ def acquire(
                 raise c.error
         ok = True
     finally:
-        src.close()
+        for f in inflight:
+            f[1].cancel()
+        read_pool.shutdown(wait=True, cancel_futures=True)
+        for h in [src, *extra]:
+            h.close()
         if not ok:
             for c in consumers:
                 while True:  # discard queued blocks so each thread sees the stop sentinel promptly
@@ -325,6 +385,7 @@ def acquire(
                     pass
 
     read_seconds = time.perf_counter() - started
+    bottleneck = _bottleneck(read_seconds, read_wait, consumers, fmt)
     digests = {a: h.hexdigest() for a, h in hashers.items()}
     bad_ranges = _merge_ranges(bad)
     if fmt == "e01":
@@ -354,6 +415,8 @@ def acquire(
         "duration": elapsed,
         "avg_speed": total / elapsed if elapsed else 0.0,
         "block_size": block_size,
+        "io_depth": io_depth,
+        "bottleneck": bottleneck,
         "compression": compression if fmt == "e01" else None,
         "segment_size": segment_size,
         "verify": None,

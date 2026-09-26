@@ -33,11 +33,13 @@ Then open http://localhost:8757. It uses a different port from Frame Guard, so b
 
 ## Workflow
 
-1. **Pick the source**: choose it from the device list (physical drives, partitions and volumes, with
-   removable/system badges), or type a path (`\\.\PhysicalDrive1`, `\\.\E:`, `/dev/sdb`, `/dev/rdisk2`). An
+1. **Pick the source**: choose it from the device list, or type a path. The list has a **Physical / Logical**
+   filter: physical shows whole drives, logical shows partitions and volumes (drive letters on Windows).
+   Removable and OS drives are badged. Paths you can type include (`\\.\PhysicalDrive1`, `\\.\E:`, `/dev/sdb`, `/dev/rdisk2`). An
    existing image file also works.
 2. **Pick the destination**: an output folder, an image name and a format (E01 or DD).
-3. **Triage & Image**:
+3. **Triage & Image** (triage is optional; switch it off in the **Triage** panel and the button becomes
+   **Image**):
    - **Triage** reads SMART data (reallocated, pending and uncorrectable sectors, NVMe media errors), runs a
      short sequential read to estimate imaging time, then runs a read scan.
    - If the scan is **clear**, imaging starts immediately.
@@ -62,14 +64,18 @@ does not stop or retry on bad sectors either way (see below).
 
 ## Why it's fast
 
-- **One read, fanned out.** A single reader thread issues large sequential reads (8 MiB by default). Each
+- **Several reads in flight.** The reader keeps two 8 MiB reads queued at the drive by default, each on its
+  own OS handle, so the drive never sits idle between requests. On this test VM going from one read in
+  flight to two gave about 50% more read throughput. Try 4 or 8 for NVMe ("Reads in flight").
+- **One read, fanned out.** Each
   block goes to one thread per hash algorithm and to the writer through bounded queues. `hashlib` and `zlib`
   release the GIL, so MD5, SHA-1, SHA-256 and compression run on separate cores at the same time as the read.
 - **Hashes are computed during acquisition**, so there's no second pass. Verify-after is optional.
 - **Parallel E01 compression.** Chunks are compressed on a thread pool. The next block compresses while the
-  previous one is written.
+  previous one is written, and each block's chunks go to disk in one gathered write rather than hundreds of
+  small ones.
 - **Cheap handling of empty and encrypted data.** All-zero chunks are compressed once and reused. In "fast"
-  mode, chunks that look incompressible (BitLocker/FileVault volumes, media files) are detected from a 4 KiB
+  mode, chunks that look incompressible (BitLocker/FileVault volumes, media files) are detected from a 2 KiB
   sample and stored raw. A full zlib attempt on that kind of data runs at about 60 MB/s per core.
 - **No retries on bad sectors.** A block that fails to read is re-read in 64 KiB pieces, then one sector at a
   time. Sectors that still fail are zero-filled and logged, and recorded in the E01 `error2` section. If a
@@ -83,6 +89,11 @@ Measured on a 4-core cloud VM, reading from and writing to RAM so the pipeline i
 | E01, fast | MD5 + SHA-1 | ~580 MB/s |
 | E01, fast | SHA-1 only | ~840 MB/s |
 | DD | SHA-256 only | ~820 MB/s |
+
+**Every run reports what limited it.** The results card and report show "Limited by": the source drive,
+MD5/SHA hashing, or E01 compression plus the destination write. That tells you which setting (or which
+hardware) to change. If it says the source drive, no tool can image faster. That is also why FTK Imager
+ends up close on the same drive.
 
 **MD5 is the ceiling.** It can't be parallelised and runs at about 600–900 MB/s per core, depending on the
 CPU. That is faster than any HDD, SATA SSD or USB 3 bridge, so in practice the source drive is the limit. For
