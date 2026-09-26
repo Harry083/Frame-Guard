@@ -41,7 +41,7 @@ The page has three boxes: **Source** and **Scan** side by side, and **Image deta
    `/dev/sdb` or `/dev/rdisk2`, or pick an existing image file.
 2. **Scan** (optional): choose Quick, Thorough or Full surface.
    - The **Scan** button in the box runs just the check, which is handy for sorting a pile of drives.
-   - With **Scan automatically before imaging** ticked, the **Image** button scans first.
+   - Tick **Scan automatically before imaging** (off by default) to have the **Image** button scan first.
    - The scan reads SMART data (reallocated, pending and uncorrectable sectors, NVMe media errors), runs a
      short sequential read to estimate imaging time, then reads sectors.
    - If the result needs **attention** (unreadable sectors or SMART defects), imaging pauses and shows what
