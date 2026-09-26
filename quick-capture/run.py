@@ -1,4 +1,4 @@
-"""Launch the Sector Guard local web server."""
+"""Launch the Quick Capture local web server."""
 import uvicorn
 
 if __name__ == "__main__":

@@ -119,7 +119,7 @@ def generate_report_html(job) -> str:
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Sector Guard Report — {_esc(job.id)}</title>
+<title>Quick Capture Report — {_esc(job.id)}</title>
 <style>
   :root {{
     --bg: #0f1216; --panel: #171b21; --panel-2: #1e242c; --border: #2a313b;
@@ -158,7 +158,7 @@ def generate_report_html(job) -> str:
 </head>
 <body>
 <div class="wrap">
-  <h1>Sector Guard Acquisition Report</h1>
+  <h1>Quick Capture Acquisition Report</h1>
   <div class="meta-line">Generated {_esc(generated)} · job {_esc(ctx['job_id'])} · {_esc(ctx['tool'])}
     · {_esc(ctx['host']['node'])} ({_esc(ctx['host']['platform'])})</div>
 
@@ -235,7 +235,7 @@ def write_acquisition_log(job) -> str:
     dev = ctx["device"] or {}
     triage = ctx["triage"]
     lines = [
-        f"Created by {ctx['tool']} (Sector Guard)",
+        f"Created by {ctx['tool']} (Quick Capture)",
         f"Host: {ctx['host']['node']} ({ctx['host']['platform']})",
         "",
         "[Case]",

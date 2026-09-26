@@ -424,7 +424,7 @@ select {
 .browse-entry .name { flex: 1; }
 .browse-entry .size { color: var(--text-dim); font-size: 11.5px; }
 
-/* ---------- Sector Guard additions ---------- */
+/* ---------- Quick Capture additions ---------- */
 
 .banner {
   background: #2a2314;

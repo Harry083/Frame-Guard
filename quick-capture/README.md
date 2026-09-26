@@ -1,4 +1,4 @@
-# Sector Guard
+# Quick Capture
 
 A local web app for **fast forensic imaging** of a disk, partition or volume to **E01** (EnCase 6) or **DD**
 (raw). It checks the device for bad sectors before imaging. A healthy drive is imaged straight away. If the
@@ -122,7 +122,7 @@ Existing files are never overwritten. If a run is cancelled or fails, its partia
 ## Project structure
 
 ```
-sector-guard/
+quick-capture/
 ├── backend/
 │   ├── main.py           FastAPI app & routes
 │   ├── devices.py        device enumeration (Windows/Linux/macOS) and read-only raw access

@@ -18,7 +18,7 @@ from . import triage as triage_mod
 from .ewf import COMPRESSION_LEVELS
 from .jobs import job_manager
 
-app = FastAPI(title="Sector Guard")
+app = FastAPI(title="Quick Capture")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 BLOCK_SIZES_MB = (1, 2, 4, 8, 16, 32)
@@ -63,7 +63,7 @@ async def api_source_info(path: str = Query(...)):
         return await asyncio.to_thread(devices.source_info, path)
     except PermissionError as exc:
         raise HTTPException(
-            status_code=403, detail=f"Permission denied opening {path} — run Sector Guard as Administrator/root"
+            status_code=403, detail=f"Permission denied opening {path} — run Quick Capture as Administrator/root"
         ) from exc
     except OSError as exc:
         raise HTTPException(status_code=400, detail=f"Cannot open {path}: {exc}") from exc
@@ -216,7 +216,7 @@ async def api_job_report_json(job_id: str):
     job = _get_finished_job(job_id)
     return JSONResponse(
         report_mod.generate_report_json(job),
-        headers={"Content-Disposition": f'attachment; filename="sector-guard-report-{job_id}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="quick-capture-report-{job_id}.json"'},
     )
 
 

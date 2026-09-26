@@ -32,7 +32,7 @@ HEADER_COMPRESSION_CHAR = {"none": "n", "fast": "f", "best": "b"}
 # Room kept free at the end of a segment for the table/table2 pair and the closing sections.
 SEGMENT_TAIL_RESERVE = 2 * (76 + 24 + 4 * MAX_TABLE_ENTRIES + 4) + 64 * 1024
 
-APP_VERSION = "SG 1.0"
+APP_VERSION = "QC 1.0"
 
 
 def segment_extension(n: int) -> str:

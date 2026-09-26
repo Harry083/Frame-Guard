@@ -83,7 +83,7 @@ async function loadHealth() {
     const banner = $("#admin-banner");
     const notes = [];
     if (!data.admin) {
-      notes.push("Not running as Administrator/root — physical devices can't be opened. Restart Sector Guard from an elevated prompt.");
+      notes.push("Not running as Administrator/root — physical devices can't be opened. Restart Quick Capture from an elevated prompt.");
     }
     if (!data.smartctl) {
       notes.push("smartctl not found — the scan will rely on reading sectors only. Install smartmontools for SMART health checks.");
@@ -527,7 +527,7 @@ function showResults(job) {
   $("#report-html-link").href = `/api/jobs/${job.id}/report.html`;
   const jsonLink = $("#report-json-link");
   jsonLink.href = `/api/jobs/${job.id}/report.json`;
-  jsonLink.setAttribute("download", `sector-guard-report-${job.id}.json`);
+  jsonLink.setAttribute("download", `quick-capture-report-${job.id}.json`);
 
   $("#result-cards").innerHTML =
     card("Average speed", formatSpeed(r.avg_speed)) +
